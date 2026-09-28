@@ -1,4 +1,4 @@
-const MODELS = ['gemini-2.5-flash-lite', 'gemini-3.5-flash-lite'];
+const MODELS = ['gemini-3.5-flash-lite', 'gemini-3.8-flash'];
 const MAX_NOTES_LENGTH = 3000;
 const WINDOW_MS = 10 * 60 * 1000;
 const MAX_REQUESTS_PER_WINDOW = 8;
