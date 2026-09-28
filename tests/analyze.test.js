@@ -39,16 +39,14 @@ test('returns a grounded structured Gemini analysis', async () => {
     return {
       ok: true,
       json: async () => ({
-        interaction: {
-          output_text: JSON.stringify({
-            score: 80,
-            gaps: [{ severity: 'medium', title: 'Timing is vague', question: 'What exact deadline applies?' }],
-            checks: [{ pass: true }, { pass: true }, { pass: true }, { pass: false }, { pass: true }, { pass: true }],
-            sections: {
-              state: 'Checkout errors continue.', completed: ['Rolled back payments.'], pending: ['Check mobile.'], risks: ['Checkout errors continue.'], owners: ['Sam'], timing: ['Tomorrow'], evidence: ['Error volume dropped.']
-            }
-          })
-        }
+        candidates: [{ content: { parts: [{ text: JSON.stringify({
+          score: 80,
+          gaps: [{ severity: 'medium', title: 'Timing is vague', question: 'What exact deadline applies?' }],
+          checks: [{ pass: true }, { pass: true }, { pass: true }, { pass: false }, { pass: true }, { pass: true }],
+          sections: {
+            state: 'Checkout errors continue.', completed: ['Rolled back payments.'], pending: ['Check mobile.'], risks: ['Checkout errors continue.'], owners: ['Sam'], timing: ['Tomorrow'], evidence: ['Error volume dropped.']
+          }
+        }) }] } }]
       }),
       headers: { get: () => null }
     };

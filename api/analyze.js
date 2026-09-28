@@ -1,4 +1,4 @@
-const MODEL = 'gemini-3.7-flash';
+const MODELS = ['gemini-3.7-flash', 'gemini-3.5-flash'];
 const MAX_NOTES_LENGTH = 3000;
 const WINDOW_MS = 10 * 60 * 1000;
 const MAX_REQUESTS_PER_WINDOW = 8;
@@ -164,32 +164,37 @@ export default async function handler(req, res) {
   if (!apiKey) return res.status(503).json({ error: 'AI analysis is not configured yet.' });
 
   try {
-    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        input: buildPrompt(notes),
-        response_format: {
-          type: 'text',
-          mime_type: 'application/json',
-          schema: responseSchema
-        }
-      }),
-      signal: AbortSignal.timeout(12000)
-    });
-    if (!response.ok) {
-      const requestId = response.headers.get('x-request-id');
-      console.error('Gemini request failed', { status: response.status, requestId });
-      return res.status(response.status === 429 ? 429 : 502).json({ error: response.status === 429 ? 'Gemini’s free quota is busy. Try again shortly.' : 'AI analysis is temporarily unavailable.' });
+    let lastStatus = 502;
+    for (const model of MODELS) {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey
+        },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: buildPrompt(notes) }] }],
+          generationConfig: {
+            responseMimeType: 'application/json',
+            responseJsonSchema: responseSchema,
+            temperature: 0.1,
+            maxOutputTokens: 2200
+          }
+        }),
+        signal: AbortSignal.timeout(12000)
+      });
+      if (response.ok) {
+        const payload = await response.json();
+        const outputText = payload?.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join('');
+        if (typeof outputText !== 'string' || !outputText) throw new Error('Missing structured model output');
+        return res.status(200).json(normalizeAnalysis(JSON.parse(outputText)));
+      }
+      lastStatus = response.status;
+      const retryable = response.status === 404 || response.status === 503;
+      console.error('Gemini request failed', { model, status: response.status, retryable });
+      if (!retryable) break;
     }
-    const payload = await response.json();
-    const outputText = payload?.interaction?.output_text || payload?.output_text;
-    if (typeof outputText !== 'string') throw new Error('Missing structured model output');
-    return res.status(200).json(normalizeAnalysis(JSON.parse(outputText)));
+    return res.status(lastStatus === 429 ? 429 : 502).json({ error: lastStatus === 429 ? 'Gemini’s free quota is busy. Try again shortly.' : 'AI analysis is temporarily unavailable.' });
   } catch (error) {
     console.error('Relay analysis error', { name: error?.name, message: error?.message });
     return res.status(502).json({ error: 'AI analysis is temporarily unavailable.' });
