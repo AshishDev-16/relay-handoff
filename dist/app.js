@@ -99,9 +99,12 @@ async function analyzeWithGemini(text) {
   try {
     const response = await fetch('/api/analyze', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Relay-Client': 'web-v1' },
       body: JSON.stringify({ notes: text }),
-      signal: controller.signal
+      signal: controller.signal,
+      credentials: 'same-origin',
+      cache: 'no-store',
+      referrerPolicy: 'same-origin'
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || 'AI analysis failed');
@@ -142,7 +145,7 @@ function renderAnalysis(data) {
   const handoffHtml = [section('Current state', data.sections.state), section('Completed', data.sections.completed, true), section('Next actions', data.sections.pending, true), section('Risks / blockers', data.sections.risks, true), section('Owner & timing', `${data.sections.owners.join(', ')} · ${data.sections.timing.join(', ')}`), section('Evidence', data.sections.evidence, true)].join('');
   const checksHtml = data.checks.map((check) => `<div class="check-item"><div><strong>${escapeHtml(check.name)}</strong><small>${escapeHtml(check.detail)}</small></div><span class="check-mark ${check.pass ? '' : 'missing'}">${check.pass ? '✓' : '!'}</span></div>`).join('');
   results.innerHTML = `
-    <div class="score-row"><div class="score-ring" style="--score:${data.score};--ring-color:${color}"><strong>${data.score}</strong></div><div class="score-copy"><h3>${label}</h3><p>${description}</p></div></div>
+    <div class="score-row"><div class="score-ring"><strong>${data.score}</strong></div><div class="score-copy"><h3>${label}</h3><p>${description}</p></div></div>
     <div class="result-tabs" role="tablist" aria-label="Analysis views">
       <button class="tab-button active" type="button" role="tab" aria-selected="true" data-tab="gaps">Gaps (${data.gaps.length})</button>
       <button class="tab-button" type="button" role="tab" aria-selected="false" data-tab="handoff">Clean handoff</button>
@@ -152,6 +155,9 @@ function renderAnalysis(data) {
     <div class="tab-panel handoff-sections" data-panel="handoff" hidden>${handoffHtml}</div>
     <div class="tab-panel check-list" data-panel="checks" hidden>${checksHtml}</div>
     <div class="result-actions"><button class="action-button primary" id="copyBtn" type="button">Copy handoff</button><button class="action-button" id="exportBtn" type="button">Download .txt</button><button class="action-button" id="resetBtn" type="button">Start over</button></div>`;
+  const scoreRing = $('.score-ring', results);
+  scoreRing.style.setProperty('--score', String(data.score));
+  scoreRing.style.setProperty('--ring-color', color);
   $$('.tab-button', results).forEach((button) => button.addEventListener('click', () => activateTab(button.dataset.tab)));
   $('#copyBtn').addEventListener('click', copyHandoff);
   $('#exportBtn').addEventListener('click', exportHandoff);
@@ -168,7 +174,58 @@ function activateTab(name) {
 }
 
 function getHistory() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; }
+  try {
+    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    if (!Array.isArray(stored)) return [];
+    return stored.map(sanitizeStoredAnalysis).filter(Boolean).slice(0, 6);
+  } catch {
+    return [];
+  }
+}
+
+function sanitizeStoredAnalysis(item) {
+  if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+  const score = Number(item.score);
+  if (!Number.isFinite(score) || typeof item.original !== 'string' || item.original.length > 3000) return null;
+  const safeString = (value, fallback = 'Not stated', max = 600) => typeof value === 'string' ? value.replace(/[\u0000-\u001F\u007F]/g, ' ').trim().slice(0, max) || fallback : fallback;
+  const safeList = (value, fallback) => {
+    const list = Array.isArray(value) ? value.map((entry) => safeString(entry, '', 600)).filter(Boolean).slice(0, 8) : [];
+    return list.length ? list : [fallback];
+  };
+  const sections = item.sections && typeof item.sections === 'object' ? item.sections : {};
+  const gaps = Array.isArray(item.gaps) ? item.gaps.slice(0, 5).map((gap) => ({
+    severity: gap?.severity === 'high' ? 'high' : 'medium',
+    title: safeString(gap?.title, 'Missing detail', 80),
+    question: safeString(gap?.question, 'What detail should be clarified?', 220)
+  })) : [];
+  const expectedChecks = [
+    ['Current state', 'What is happening now'],
+    ['Work completed', 'What has already been tried'],
+    ['Clear owner', 'Who owns the next move'],
+    ['Specific timing', 'When follow-up should happen'],
+    ['Next action', 'What should happen next'],
+    ['Evidence', 'A result, ticket, or link']
+  ];
+  const suppliedChecks = Array.isArray(item.checks) ? item.checks : [];
+  const createdAt = Number.isNaN(Date.parse(item.createdAt)) ? new Date().toISOString() : new Date(item.createdAt).toISOString();
+  return {
+    id: Number.isFinite(Number(item.id)) ? Number(item.id) : Date.now(),
+    createdAt,
+    original: safeString(item.original, '', 3000),
+    source: item.source === 'gemini' ? 'gemini' : 'local',
+    score: Math.max(0, Math.min(100, Math.round(score))),
+    gaps,
+    checks: expectedChecks.map(([name, detail], index) => ({ name, detail, pass: Boolean(suppliedChecks[index]?.pass) })),
+    sections: {
+      state: safeString(sections.state),
+      completed: safeList(sections.completed, 'Not stated'),
+      pending: safeList(sections.pending, 'Not stated'),
+      risks: safeList(sections.risks, 'No explicit risks mentioned'),
+      owners: safeList(sections.owners, 'Unassigned'),
+      timing: safeList(sections.timing, 'No specific deadline'),
+      evidence: safeList(sections.evidence, 'No evidence supplied')
+    }
+  };
 }
 
 function saveHistory(data) {

@@ -13,6 +13,21 @@ function mockResponse() {
   };
 }
 
+function jsonRequest(body, suffix = 'default', extraHeaders = {}) {
+  return {
+    method: 'POST',
+    body,
+    headers: {
+      'content-type': 'application/json',
+      'x-vercel-forwarded-for': `test-${suffix}`,
+      host: 'relay-handoff.vercel.app',
+      origin: 'https://relay-handoff.vercel.app',
+      ...extraHeaders
+    },
+    socket: {}
+  };
+}
+
 test('normalizes untrusted model output into the Relay shape', () => {
   const result = normalizeAnalysis({ score: 145, gaps: [{ severity: 'unknown', title: '  Missing   owner ', question: ' Who owns it? ' }], checks: [{ pass: true }], sections: {} });
   assert.equal(result.score, 100);
@@ -23,10 +38,41 @@ test('normalizes untrusted model output into the Relay shape', () => {
 });
 
 test('rejects short notes before calling Gemini', async () => {
-  const req = { method: 'POST', body: { notes: 'too short' }, headers: { 'x-forwarded-for': 'test-short' }, socket: {} };
+  const req = jsonRequest({ notes: 'too short' }, 'short');
   const res = mockResponse();
   await handler(req, res);
   assert.equal(res.statusCode, 400);
+});
+
+test('rejects cross-origin browser requests', async () => {
+  const req = jsonRequest({ notes: 'A sufficiently long handoff note.' }, 'origin', { origin: 'https://attacker.example' });
+  const res = mockResponse();
+  await handler(req, res);
+  assert.equal(res.statusCode, 403);
+});
+
+test('rejects non-JSON and oversized request bodies', async () => {
+  const nonJson = jsonRequest({ notes: 'A sufficiently long handoff note.' }, 'type', { 'content-type': 'text/plain' });
+  const nonJsonRes = mockResponse();
+  await handler(nonJson, nonJsonRes);
+  assert.equal(nonJsonRes.statusCode, 415);
+
+  const oversized = jsonRequest({ notes: 'A sufficiently long handoff note.' }, 'oversized', { 'content-length': '16001' });
+  const oversizedRes = mockResponse();
+  await handler(oversized, oversizedRes);
+  assert.equal(oversizedRes.statusCode, 413);
+});
+
+test('rejects unexpected fields and control characters', async () => {
+  const extraField = jsonRequest({ notes: 'A sufficiently long handoff note.', admin: true }, 'shape');
+  const extraFieldRes = mockResponse();
+  await handler(extraField, extraFieldRes);
+  assert.equal(extraFieldRes.statusCode, 400);
+
+  const controls = jsonRequest({ notes: 'A handoff with a hidden\u0000 control.' }, 'controls');
+  const controlsRes = mockResponse();
+  await handler(controls, controlsRes);
+  assert.equal(controlsRes.statusCode, 400);
 });
 
 test('returns a grounded structured Gemini analysis', async () => {
@@ -36,6 +82,10 @@ test('returns a grounded structured Gemini analysis', async () => {
   globalThis.fetch = async (_url, options) => {
     assert.equal(options.headers['x-goog-api-key'], 'test-key');
     assert.doesNotMatch(options.body, /test-key/);
+    const requestBody = JSON.parse(options.body);
+    assert.match(requestBody.systemInstruction.parts[0].text, /untrusted data/);
+    assert.match(requestBody.contents[0].parts[0].text, /Checkout errors continue/);
+    assert.doesNotMatch(requestBody.systemInstruction.parts[0].text, /Checkout errors continue/);
     return {
       ok: true,
       json: async () => ({
@@ -52,7 +102,7 @@ test('returns a grounded structured Gemini analysis', async () => {
     };
   };
   try {
-    const req = { method: 'POST', body: { notes: 'Checkout errors continue. Sam rolled back payments and needs to check mobile tomorrow.' }, headers: { 'x-forwarded-for': 'test-success' }, socket: {} };
+    const req = jsonRequest({ notes: 'Checkout errors continue. Sam rolled back payments and needs to check mobile tomorrow.' }, 'success');
     const res = mockResponse();
     await handler(req, res);
     assert.equal(res.statusCode, 200);
