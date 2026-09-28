@@ -61,6 +61,11 @@ test('rejects non-JSON and oversized request bodies', async () => {
   const oversizedRes = mockResponse();
   await handler(oversized, oversizedRes);
   assert.equal(oversizedRes.statusCode, 413);
+
+  const hiddenSize = jsonRequest({ notes: 'x'.repeat(16_001) }, 'hidden-size');
+  const hiddenSizeRes = mockResponse();
+  await handler(hiddenSize, hiddenSizeRes);
+  assert.equal(hiddenSizeRes.statusCode, 413);
 });
 
 test('rejects unexpected fields and control characters', async () => {

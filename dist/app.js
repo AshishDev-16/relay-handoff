@@ -99,7 +99,7 @@ async function analyzeWithGemini(text) {
   try {
     const response = await fetch('/api/analyze', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Relay-Client': 'web-v1' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ notes: text }),
       signal: controller.signal,
       credentials: 'same-origin',

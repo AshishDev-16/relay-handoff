@@ -171,6 +171,9 @@ export default async function handler(req, res) {
   if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body) || Object.keys(req.body).some((key) => key !== 'notes')) {
     return res.status(400).json({ error: 'Request body must contain only notes.' });
   }
+  if (Buffer.byteLength(JSON.stringify(req.body), 'utf8') > MAX_BODY_BYTES) {
+    return res.status(413).json({ error: 'Request body is too large.' });
+  }
   const notes = typeof req.body.notes === 'string' ? req.body.notes.trim() : '';
   if (notes.length < 10 || notes.length > MAX_NOTES_LENGTH) {
     return res.status(400).json({ error: 'Notes must be between 10 and 3,000 characters.' });
