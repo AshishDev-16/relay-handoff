@@ -1,4 +1,4 @@
-const MODELS = ['gemini-3.1-flash-lite', 'gemini-3.5-flash-lite'];
+const MODELS = ['gemini-3.6-flash', 'gemini-3.5-flash-lite'];
 const MAX_NOTES_LENGTH = 3000;
 const WINDOW_MS = 10 * 60 * 1000;
 const MAX_REQUESTS_PER_WINDOW = 8;
@@ -166,23 +166,29 @@ export default async function handler(req, res) {
   try {
     let lastStatus = 502;
     for (const model of MODELS) {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': apiKey
-        },
-        body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: buildPrompt(notes) }] }],
-          generationConfig: {
-            responseMimeType: 'application/json',
-            responseJsonSchema: responseSchema,
-            temperature: 0.1,
-            maxOutputTokens: 2200
-          }
-        }),
-        signal: AbortSignal.timeout(12000)
-      });
+      let response;
+      try {
+        response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey
+          },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: buildPrompt(notes) }] }],
+            generationConfig: {
+              responseMimeType: 'application/json',
+              responseJsonSchema: responseSchema,
+              temperature: 0.1,
+              maxOutputTokens: 2200
+            }
+          }),
+          signal: AbortSignal.timeout(6000)
+        });
+      } catch (error) {
+        console.error('Gemini request timed out', { model, name: error?.name });
+        continue;
+      }
       if (response.ok) {
         const payload = await response.json();
         const outputText = payload?.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join('');
