@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f7f5ff" />
+    <meta name="description" content="Turn rushed notes into a clear, actionable handoff." />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='20' fill='%231d1b2e'/%3E%3Cpath d='M15 20h25a10 10 0 010 20H25' fill='none' stroke='%23d7f892' stroke-width='8' stroke-linecap='round'/%3E%3Cpath d='M30 31l-9 9 9 9' fill='none' stroke='%23b7c4ff' stroke-width='7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+    <title>Relay — Handoff Quality Checker</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="app-bar">
+      <a class="brand" href="#" aria-label="Relay home">
+        <span class="brand-glyph" aria-hidden="true"><i></i></span>
+        <span class="brand-name">Relay</span>
+      </a>
+      <div class="app-actions">
+        <span class="privacy-chip"><i></i> Secure AI check</span>
+        <button class="recent-button" id="historyBtn" type="button" aria-label="Open recent handoffs">
+          <span>Recent</span><b id="historyCount">0</b>
+        </button>
+      </div>
+    </header>
+
+    <main>
+      <section class="page-intro" aria-labelledby="pageTitle">
+        <div>
+          <p class="kicker">HANDOFF QUALITY CHECKER</p>
+          <h1 id="pageTitle">Make the next move <em>obvious.</em></h1>
+        </div>
+        <p>Drop in the notes you were about to send. Relay separates what happened from what still needs an owner.</p>
+      </section>
+
+      <section class="relay-board" aria-label="Handoff workspace">
+        <article class="source-zone">
+          <div class="zone-heading">
+            <div class="zone-title">
+              <span class="step-chip">1</span>
+              <div><p>START HERE</p><h2>Rough notes</h2></div>
+            </div>
+            <button class="example-button" id="sampleBtn" type="button"><span aria-hidden="true">✦</span> Try an example</button>
+          </div>
+
+          <label class="sr-only" for="notes">Rough handoff notes</label>
+          <textarea id="notes" maxlength="3000" placeholder="What changed? What did you try? Who owns the next move—and by when?"></textarea>
+
+          <div class="source-footer">
+            <span class="count" id="charCount">0 / 3,000</span>
+            <span class="grounded-note">Sent to Gemini—avoid confidential information</span>
+          </div>
+        </article>
+
+        <div class="relay-spine" aria-hidden="true">
+          <span class="spine-cap">RAW</span>
+          <span class="spine-line"><i class="baton-dot"></i></span>
+          <span class="spine-cap">READY</span>
+        </div>
+
+        <aside class="output-zone" aria-live="polite">
+          <div class="zone-heading">
+            <div class="zone-title">
+              <span class="step-chip dark">2</span>
+              <div><p>THE BATON PASS</p><h2>Handoff check</h2></div>
+            </div>
+            <span class="status-pill" id="statusPill">Not checked</span>
+          </div>
+
+          <div class="empty-state" id="emptyState">
+            <div class="handoff-orbit" aria-hidden="true">
+              <span class="orbit-card one"></span>
+              <span class="orbit-card two"></span>
+              <span class="orbit-arrow">→</span>
+            </div>
+            <h3>A clean pass lands here.</h3>
+            <p>You’ll get a readiness score, the questions nobody asked, and a structured note ready to copy.</p>
+          </div>
+          <div class="results" id="results" hidden></div>
+        </aside>
+
+        <button class="analyze-button" id="analyzeBtn" type="button">
+          <span>Check the handoff</span>
+          <i aria-hidden="true">→</i>
+        </button>
+      </section>
+
+      <section class="method-strip" aria-label="How Relay works">
+        <div><span>01</span><p><strong>Extracts</strong> only what you wrote</p></div>
+        <div><span>02</span><p><strong>Challenges</strong> gaps and vague language</p></div>
+        <div><span>03</span><p><strong>Structures</strong> the final baton pass</p></div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="footer-signature">
+        <span>Relay / AI-assisted handoffs</span>
+        <strong>Designed &amp; built by Ashish Kadu</strong>
+      </div>
+      <p>For everyday teamwork—not emergency, medical, or safety-critical decisions.</p>
+    </footer>
+
+    <dialog id="historyDialog">
+      <div class="dialog-head">
+        <div><p class="kicker">ON THIS DEVICE</p><h2>Recent handoffs</h2></div>
+        <button class="icon-button" id="closeHistoryBtn" type="button" aria-label="Close history">×</button>
+      </div>
+      <div id="historyList" class="history-list"></div>
+      <button class="clear-history" id="clearHistoryBtn" type="button">Clear recent handoffs</button>
+    </dialog>
+
+    <script src="app.js"></script>
+  </body>
+</html>
