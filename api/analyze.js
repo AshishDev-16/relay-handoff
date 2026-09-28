@@ -1,4 +1,4 @@
-const MODELS = ['gemini-3.8-flash', 'gemini-3.5-flash-lite'];
+const MODELS = ['gemini-3.1-flash-lite', 'gemini-3.5-flash-lite'];
 const MAX_NOTES_LENGTH = 3000;
 const WINDOW_MS = 10 * 60 * 1000;
 const MAX_REQUESTS_PER_WINDOW = 8;
@@ -193,7 +193,7 @@ export default async function handler(req, res) {
       let providerError = '';
       try {
         const errorPayload = await response.json();
-        providerError = String(errorPayload?.error?.status || errorPayload?.error?.message || '').slice(0, 180);
+        providerError = String(errorPayload?.error?.message || errorPayload?.error?.status || '').slice(0, 180);
       } catch {
         providerError = 'Unreadable provider response';
       }
