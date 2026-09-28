@@ -1,4 +1,4 @@
-const MODELS = ['gemini-3.7-flash', 'gemini-3.5-flash'];
+const MODELS = ['gemini-3.8-flash', 'gemini-3.5-flash-lite'];
 const MAX_NOTES_LENGTH = 3000;
 const WINDOW_MS = 10 * 60 * 1000;
 const MAX_REQUESTS_PER_WINDOW = 8;
@@ -190,8 +190,15 @@ export default async function handler(req, res) {
         return res.status(200).json(normalizeAnalysis(JSON.parse(outputText)));
       }
       lastStatus = response.status;
+      let providerError = '';
+      try {
+        const errorPayload = await response.json();
+        providerError = String(errorPayload?.error?.status || errorPayload?.error?.message || '').slice(0, 180);
+      } catch {
+        providerError = 'Unreadable provider response';
+      }
       const retryable = response.status === 404 || response.status === 503;
-      console.error('Gemini request failed', { model, status: response.status, retryable });
+      console.error('Gemini request failed', { model, status: response.status, retryable, providerError });
       if (!retryable) break;
     }
     return res.status(lastStatus === 429 ? 429 : 502).json({ error: lastStatus === 429 ? 'Gemini’s free quota is busy. Try again shortly.' : 'AI analysis is temporarily unavailable.' });
